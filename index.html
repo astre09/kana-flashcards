@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kana Trainer</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Japanese Kana Trainer</p>
+        <h1>Kana Flashcards</h1>
+      </div>
+      <button id="statsButton" class="ghost-button" type="button">Stats</button>
+    </header>
+
+    <section id="selectionScreen" class="screen active">
+      <div class="panel intro-panel">
+        <div>
+          <h2>Build your test</h2>
+          <p>Choose a page, then select entire sections, full rows, or individual kana.</p>
+        </div>
+        <div class="mode-switch" role="tablist" aria-label="Kana pages">
+          <button class="mode-button active" data-mode="hiragana" type="button" role="tab" aria-selected="true">Hiragana</button>
+          <button class="mode-button" data-mode="katakana" type="button" role="tab" aria-selected="false">Katakana</button>
+          <button class="mode-button" data-mode="both" type="button" role="tab" aria-selected="false">Combined</button>
+        </div>
+      </div>
+
+      <div class="toolbar panel">
+        <div class="toolbar-left">
+          <button id="selectVisibleButton" class="secondary-button" type="button">Select visible page</button>
+          <button id="clearVisibleButton" class="secondary-button" type="button">Clear visible page</button>
+          <button id="clearAllButton" class="ghost-button" type="button">Clear all</button>
+        </div>
+        <div class="selection-summary">
+          <span id="selectedCount">0</span> total selected
+          <small>Selections stay saved when switching pages.</small>
+        </div>
+      </div>
+
+      <div class="selection-note">
+        <span>Use a section button for all Basic/Dakuten/etc., or click a row label for one row.</span>
+        <span>Press <kbd>Space</kbd> during a test to reveal and mark incorrect.</span>
+      </div>
+
+      <div id="kanaGroups" class="kana-groups"></div>
+
+      <aside class="floating-start" aria-label="Start test shortcut">
+        <button id="startButton" class="fab fab-start" type="button" disabled aria-label="Start test" title="Start test">
+          <span class="fab-icon" aria-hidden="true">▶</span>
+          <span id="floatingSelectedCount" class="fab-badge">0</span>
+        </button>
+      </aside>
+    </section>
+
+    <section id="testScreen" class="screen">
+      <div class="test-layout">
+        <div class="flashcard panel">
+          <div id="scriptBadge" class="script-badge">Hiragana</div>
+          <div id="kanaDisplay" class="kana-display">あ</div>
+          <div id="answerReveal" class="answer-reveal hidden">a</div>
+          <form id="answerForm" class="answer-form" autocomplete="off">
+            <input id="answerInput" type="text" inputmode="latin" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="Type romaji" />
+            <button id="submitButton" class="primary-button" type="submit">Submit</button>
+          </form>
+          <div id="feedback" class="feedback" aria-live="polite"></div>
+          <div class="key-hints">
+            <span><kbd>Enter</kbd> submit</span>
+            <span><kbd>Space</kbd> reveal</span>
+          </div>
+        </div>
+
+        <div class="progress-panel panel">
+          <div class="progress-main"><span id="progressCurrent">0</span> / <span id="progressTotal">0</span></div>
+          <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+          <div class="progress-stats">
+            <div><span class="label">Remaining</span><strong id="remainingCount">0</strong></div>
+            <div><span class="label">Wrong</span><strong id="wrongCount">0</strong></div>
+            <div><span class="label">Correct</span><strong id="correctCount">0</strong></div>
+          </div>
+          <button id="quitButton" class="ghost-button full-width" type="button">Quit test</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="resultsScreen" class="screen">
+      <div class="panel results-summary">
+        <p class="eyebrow">Test complete</p>
+        <h2 id="resultsHeadline">46 / 46 correct</h2>
+        <div id="resultsPercent" class="results-percent">100%</div>
+        <p id="resultsDetail">No mistakes this round.</p>
+        <div class="results-actions">
+          <button id="retryWrongButton" class="primary-button" type="button">Retry incorrect</button>
+          <button id="restartSameButton" class="secondary-button" type="button">Restart same test</button>
+          <button id="newTestButton" class="ghost-button" type="button">Choose new characters</button>
+        </div>
+      </div>
+
+      <div id="mistakesPanel" class="panel mistakes-panel">
+        <div class="section-heading">
+          <h3>Incorrect cards</h3>
+          <span id="mistakeCountBadge" class="count-badge">0</span>
+        </div>
+        <div id="mistakesList" class="mistakes-list"></div>
+      </div>
+    </section>
+
+    <section id="statsScreen" class="screen">
+      <div class="panel stats-header">
+        <div>
+          <p class="eyebrow">History</p>
+          <h2>Performance by kana</h2>
+          <p>Stats are stored locally in this browser.</p>
+        </div>
+        <div class="stats-actions">
+          <button id="practiceWeakButton" class="primary-button" type="button">Practice weak kana</button>
+          <button id="clearStatsButton" class="ghost-button danger" type="button">Clear stats</button>
+        </div>
+      </div>
+
+      <div id="statsTable" class="stats-table"></div>
+
+      <aside class="stats-back-shortcut" aria-label="Back from stats">
+        <button id="backFromStatsButton" class="fab fab-back" type="button" aria-label="Back" title="Back">
+          <span class="fab-icon" aria-hidden="true">←</span>
+        </button>
+      </aside>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
