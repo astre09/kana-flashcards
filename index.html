@@ -46,6 +46,18 @@
         <span>Press <kbd>Space</kbd> during a test to reveal and mark incorrect.</span>
       </div>
 
+      <div class="panel test-mode-panel">
+        <div>
+          <strong>Flash mode</strong>
+          <p id="flashModeDescription">Off — normal mode waits for Enter after each answer.</p>
+        </div>
+        <label class="switch-control" for="flashModeToggle">
+          <input id="flashModeToggle" type="checkbox" />
+          <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+          <span id="flashModeState">Off</span>
+        </label>
+      </div>
+
       <div id="kanaGroups" class="kana-groups"></div>
 
       <aside class="floating-start" aria-label="Start test shortcut">
@@ -59,7 +71,12 @@
     <section id="testScreen" class="screen">
       <div class="test-layout">
         <div class="flashcard panel">
-          <div id="scriptBadge" class="script-badge">Hiragana</div>
+          <div id="roundToast" class="round-toast" aria-live="polite"></div>
+          <div class="test-badges">
+            <div id="scriptBadge" class="script-badge">Hiragana</div>
+            <div id="testModeBadge" class="script-badge mode-badge">Normal</div>
+            <div id="roundBadge" class="script-badge round-badge hidden">Round 1</div>
+          </div>
           <div id="kanaDisplay" class="kana-display">あ</div>
           <div id="answerReveal" class="answer-reveal hidden">a</div>
           <form id="answerForm" class="answer-form" autocomplete="off">
@@ -68,7 +85,7 @@
           </form>
           <div id="feedback" class="feedback" aria-live="polite"></div>
           <div class="key-hints">
-            <span><kbd>Enter</kbd> submit</span>
+            <span id="enterHint"><kbd>Enter</kbd> submit</span>
             <span><kbd>Space</kbd> reveal</span>
           </div>
         </div>
@@ -79,7 +96,7 @@
           <div class="progress-stats">
             <div><span class="label">Remaining</span><strong id="remainingCount">0</strong></div>
             <div><span class="label">Wrong</span><strong id="wrongCount">0</strong></div>
-            <div><span class="label">Correct</span><strong id="correctCount">0</strong></div>
+            <div><span id="correctLabel" class="label">Correct</span><strong id="correctCount">0</strong></div>
           </div>
           <button id="quitButton" class="ghost-button full-width" type="button">Quit test</button>
         </div>
@@ -130,6 +147,46 @@
       </aside>
     </section>
   </main>
+
+  <footer class="site-footer">
+    <div class="footer-inner">
+      <span class="footer-copy">Kana Flashcards</span>
+      <span class="footer-copyright">© 2026 astre</span>
+      <nav class="footer-links" aria-label="Footer links">
+        <a href="https://github.com/astre09/kana-flashcards" target="_blank" rel="noopener noreferrer">Source code</a>
+        <button id="contactButton" class="footer-link-button" type="button">Contact me</button>
+      </nav>
+    </div>
+  </footer>
+
+  <div id="contactModal" class="modal-backdrop hidden-modal" role="dialog" aria-modal="true" aria-labelledby="contactModalTitle">
+    <div class="contact-modal panel">
+      <button id="closeContactButton" class="modal-close" type="button" aria-label="Close contact window">×</button>
+      <p class="eyebrow">Contact</p>
+      <h2 id="contactModalTitle">Contact me</h2>
+      <p class="contact-subtitle">You can reach me through either of these.</p>
+
+      <div class="contact-list">
+        <div class="contact-item">
+          <div>
+            <span class="contact-label">Discord</span>
+            <strong>.astre</strong>
+          </div>
+          <button class="copy-contact-button" type="button" data-copy=".astre">Copy</button>
+        </div>
+
+        <div class="contact-item">
+          <div>
+            <span class="contact-label">Email</span>
+            <a href="mailto:korstax@gmail.com">korstax@gmail.com</a>
+          </div>
+          <button class="copy-contact-button" type="button" data-copy="korstax@gmail.com">Copy</button>
+        </div>
+      </div>
+
+      <div id="copyFeedback" class="copy-feedback" aria-live="polite"></div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

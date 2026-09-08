@@ -41,7 +41,12 @@ const state = {
   answered: false,
   previousScreen: 'selectionScreen',
   statsOpenScripts: new Set(),
-  statsOpenPerfect: new Set()
+  statsOpenPerfect: new Set(),
+  flashMode: false,
+  flashRound: 1,
+  flashCardOutcomeRecorded: false,
+  revealUsedForCard: false,
+  flashToastTimer: null
 };
 
 const $ = (id) => document.getElementById(id);
@@ -253,6 +258,50 @@ function shuffle(array) {
   return copy;
 }
 
+function deckSignature(deck) {
+  return deck.map(card => keyFor(card)).join('|');
+}
+
+function shuffleForNextRound(deck, previousDeck) {
+  if (deck.length <= 1) return deck.map(card => ({ ...card }));
+
+  const previousSignature = deckSignature(previousDeck);
+  let next = shuffle(deck.map(card => ({ ...card })));
+
+  for (let attempt = 0; attempt < 12 && deckSignature(next) === previousSignature; attempt++) {
+    next = shuffle(deck.map(card => ({ ...card })));
+  }
+
+  const previousLast = previousDeck[previousDeck.length - 1];
+  if (previousLast && keyFor(next[0]) === keyFor(previousLast)) {
+    const swapIndex = next.findIndex((card, index) => index > 0 && keyFor(card) !== keyFor(previousLast));
+    if (swapIndex > 0) [next[0], next[swapIndex]] = [next[swapIndex], next[0]];
+  }
+
+  return next;
+}
+
+function setFlashMode(enabled) {
+  state.flashMode = enabled;
+  localStorage.setItem('kanaTrainerFlashMode', enabled ? 'true' : 'false');
+  $('flashModeToggle').checked = enabled;
+  $('flashModeState').textContent = enabled ? 'On' : 'Off';
+  $('flashModeDescription').textContent = enabled
+    ? 'On — instant answers, endless shuffled rounds, and no persistent stats. Space reveals a hint without penalty.'
+    : 'Off — normal mode waits for Enter after each answer and records your results in Stats.';
+  updateSelectionSummary();
+}
+
+function showFlashToast(message) {
+  const toast = $('roundToast');
+  clearTimeout(state.flashToastTimer);
+  toast.textContent = message;
+  toast.classList.remove('show');
+  void toast.offsetWidth;
+  toast.classList.add('show');
+  state.flashToastTimer = setTimeout(() => toast.classList.remove('show'), 950);
+}
+
 function startDeck(deck) {
   if (!deck.length) return;
   state.currentDeck = shuffle(deck.map(card => ({ ...card })));
@@ -263,6 +312,8 @@ function startDeck(deck) {
   state.mistakes = [];
   state.revealed = false;
   state.answered = false;
+  state.flashRound = 1;
+  state.flashCardOutcomeRecorded = false;
   showScreen('testScreen');
   renderCard();
 }
@@ -273,19 +324,31 @@ function currentCard() {
 
 function renderCard() {
   const card = currentCard();
-  if (!card) return finishTest();
+  if (!card) return state.flashMode ? completeFlashRound() : finishTest();
 
   $('kanaDisplay').textContent = card.kana;
+  $('kanaDisplay').classList.remove('flash-error');
   $('scriptBadge').textContent = `${card.script} · ${card.category}`;
+  $('testModeBadge').textContent = state.flashMode ? 'Flash' : 'Normal';
+  $('testModeBadge').classList.toggle('flash-active', state.flashMode);
+  $('roundBadge').textContent = `Round ${state.flashRound}`;
+  $('roundBadge').classList.toggle('hidden', !state.flashMode);
   $('answerReveal').textContent = card.romaji;
   $('answerReveal').classList.add('hidden');
   $('answerInput').value = '';
   $('answerInput').disabled = false;
+  $('answerInput').classList.remove('flash-error-input');
+  $('answerInput').placeholder = state.flashMode ? 'Type romaji — auto submits' : 'Type romaji';
   $('submitButton').disabled = false;
+  $('submitButton').classList.toggle('flash-hidden', state.flashMode);
+  $('enterHint').classList.toggle('flash-hidden', state.flashMode);
+  $('correctLabel').textContent = state.flashMode ? 'Solved' : 'Correct';
   $('feedback').textContent = '';
   $('feedback').className = 'feedback';
   state.revealed = false;
+  state.revealUsedForCard = false;
   state.answered = false;
+  state.flashCardOutcomeRecorded = false;
   updateProgress();
   setTimeout(() => $('answerInput').focus(), 0);
 }
@@ -318,6 +381,7 @@ function acceptedAnswers(card) {
 }
 
 function submitAnswer() {
+  if (state.flashMode) return;
   if (state.answered) return advanceCard();
   const card = currentCard();
   const answer = normalizeAnswer($('answerInput').value);
@@ -329,17 +393,17 @@ function submitAnswer() {
   $('submitButton').disabled = true;
   $('answerReveal').classList.remove('hidden');
 
-  if (correct && !state.revealed) {
+  if (correct && !state.revealUsedForCard) {
     state.correct++;
     $('feedback').textContent = 'Correct';
     $('feedback').className = 'feedback correct';
     recordStat(card, 'correct');
   } else {
     state.wrong++;
-    const reason = state.revealed ? 'revealed' : 'wrong';
-    $('feedback').textContent = state.revealed ? 'Revealed — counted as incorrect' : `Incorrect — you entered “${answer}”`;
+    const reason = state.revealUsedForCard ? 'revealed' : 'wrong';
+    $('feedback').textContent = state.revealUsedForCard ? 'Revealed — counted as incorrect' : `Incorrect — you entered “${answer}”`;
     $('feedback').className = 'feedback wrong';
-    state.mistakes.push({ ...card, userAnswer: state.revealed ? null : answer, reason });
+    state.mistakes.push({ ...card, userAnswer: state.revealUsedForCard ? null : answer, reason });
     recordStat(card, reason);
   }
 
@@ -347,13 +411,100 @@ function submitAnswer() {
   setTimeout(advanceCard, 650);
 }
 
+function markFlashCardWrong(card, reason = 'wrong', userAnswer = null) {
+  if (state.flashCardOutcomeRecorded) return;
+  state.flashCardOutcomeRecorded = true;
+  state.wrong++;
+  state.mistakes.push({ ...card, userAnswer, reason });
+  // Flash Mode is intentionally practice-only and never affects persistent stats.
+  updateProgress();
+}
+
+function flashErrorFeedback() {
+  const kana = $('kanaDisplay');
+  const input = $('answerInput');
+  kana.classList.remove('flash-error');
+  input.classList.remove('flash-error-input');
+  void kana.offsetWidth;
+  kana.classList.add('flash-error');
+  input.classList.add('flash-error-input');
+  $('feedback').textContent = 'Try again';
+  $('feedback').className = 'feedback wrong flash-feedback';
+  setTimeout(() => {
+    kana.classList.remove('flash-error');
+    input.classList.remove('flash-error-input');
+    if (state.flashMode && !$('answerReveal').classList.contains('hidden')) return;
+    if (state.flashMode) $('feedback').textContent = '';
+  }, 260);
+}
+
+function handleFlashInput() {
+  if (!state.flashMode || !$('testScreen').classList.contains('active')) return;
+  const card = currentCard();
+  if (!card) return;
+
+  const input = $('answerInput');
+  const answer = normalizeAnswer(input.value);
+  if (!answer) return;
+
+  const accepted = acceptedAnswers(card);
+  if (accepted.includes(answer)) {
+    state.correct++;
+    state.answered = true;
+    updateProgress();
+    state.index++;
+    if (state.index >= state.currentDeck.length) completeFlashRound();
+    else renderCard();
+    return;
+  }
+
+  const stillPossible = accepted.some(candidate => candidate.startsWith(answer));
+  if (stillPossible) return;
+
+  markFlashCardWrong(card, 'wrong', answer);
+  input.value = '';
+  flashErrorFeedback();
+  input.focus();
+}
+
 function revealAnswer() {
-  if (state.answered || state.revealed) return;
-  state.revealed = true;
-  $('answerReveal').classList.remove('hidden');
-  $('feedback').textContent = 'Revealed — this card will count as incorrect';
-  $('feedback').className = 'feedback wrong';
+  if (state.answered) return;
+
+  state.revealed = !state.revealed;
+  $('answerReveal').classList.toggle('hidden', !state.revealed);
+
+  if (state.flashMode) {
+    $('feedback').textContent = state.revealed ? 'Hint shown — press Space again to hide' : '';
+    $('feedback').className = 'feedback';
+  } else {
+    // Normal Mode still scores the card as revealed once Space has been used,
+    // even if the hint is hidden again before submission.
+    state.revealUsedForCard = true;
+    $('feedback').textContent = state.revealed
+      ? 'Hint shown — this card will count as incorrect'
+      : 'Hint hidden — this card will still count as incorrect';
+    $('feedback').className = 'feedback wrong';
+  }
+
   $('answerInput').focus();
+}
+
+function completeFlashRound() {
+  const total = state.currentDeck.length;
+  const clean = Math.max(total - state.wrong, 0);
+  const previousDeck = state.currentDeck.map(card => ({ ...card }));
+  state.flashRound++;
+  state.currentDeck = shuffleForNextRound(state.originalDeck, previousDeck);
+  state.index = 0;
+  state.correct = 0;
+  state.wrong = 0;
+  state.mistakes = [];
+  state.revealed = false;
+  state.revealUsedForCard = false;
+  state.answered = false;
+  state.flashCardOutcomeRecorded = false;
+  renderCard();
+  showFlashToast(`Test ended · ${clean}/${total} clean · Round ${state.flashRound}`);
 }
 
 function advanceCard() {
@@ -666,7 +817,10 @@ function bindEvents() {
     renderSelection();
   });
 
+  $('flashModeToggle').addEventListener('change', event => setFlashMode(event.target.checked));
+
   $('startButton').addEventListener('click', () => startDeck([...state.selected.values()]));
+  $('answerInput').addEventListener('input', handleFlashInput);
   $('answerForm').addEventListener('submit', event => {
     event.preventDefault();
     submitAnswer();
@@ -696,5 +850,66 @@ function bindEvents() {
   });
 }
 
+
+function openContactModal() {
+  $('contactModal').classList.remove('hidden-modal');
+  document.body.classList.add('modal-open');
+  $('closeContactButton').focus();
+}
+
+function closeContactModal() {
+  $('contactModal').classList.add('hidden-modal');
+  document.body.classList.remove('modal-open');
+  $('copyFeedback').textContent = '';
+  $('contactButton').focus();
+}
+
+async function copyContactValue(value, button) {
+  try {
+    await navigator.clipboard.writeText(value);
+    $('copyFeedback').textContent = 'Copied to clipboard.';
+  } catch {
+    // Clipboard APIs can be unavailable when index.html is opened directly.
+    const temp = document.createElement('textarea');
+    temp.value = value;
+    temp.style.position = 'fixed';
+    temp.style.opacity = '0';
+    document.body.appendChild(temp);
+    temp.select();
+    document.execCommand('copy');
+    temp.remove();
+    $('copyFeedback').textContent = 'Copied to clipboard.';
+  }
+
+  const original = button.textContent;
+  button.textContent = 'Copied';
+  setTimeout(() => {
+    button.textContent = original;
+    $('copyFeedback').textContent = '';
+  }, 1400);
+}
+
+function bindFooterEvents() {
+  $('contactButton').addEventListener('click', openContactModal);
+  $('closeContactButton').addEventListener('click', closeContactModal);
+
+  $('contactModal').addEventListener('click', event => {
+    if (event.target === $('contactModal')) closeContactModal();
+  });
+
+  document.querySelectorAll('.copy-contact-button').forEach(button => {
+    button.addEventListener('click', () => copyContactValue(button.dataset.copy, button));
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !$('contactModal').classList.contains('hidden-modal')) {
+      closeContactModal();
+    }
+  });
+}
+
+
 bindEvents();
+bindFooterEvents();
+setFlashMode(localStorage.getItem('kanaTrainerFlashMode') === 'true');
 renderSelection();
