@@ -23,6 +23,10 @@ A lightweight browser-based kana trainer built with plain HTML, CSS, and JavaScr
 
 ## How to use
 
+Use https://astre09.github.io/kana-flashcards/
+
+OR to deploy locally:
+
 1. Unzip the project.
 2. Open `index.html` in your browser.
 3. Pick a page: Hiragana, Katakana, or Combined.
